@@ -1,33 +1,33 @@
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const User = require('../models/User');
 
 const AuthController = {
   async signup(req, res) {
     try {
       const { name, email, password } = req.body;
 
-      // Check if user exists
-      let user = await User.findOne({ where: { email } });
-      if (user) {
+      // Validate input
+      if (!name || !email || !password) {
+        return res.status(400).json({ message: 'Name, email, and password are required' });
+      }
+
+      // Check if user already exists
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
         return res.status(400).json({ message: 'User already exists' });
       }
 
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
+      // Create new user (password hashed by pre-save middleware)
+      const user = new User({ name, email, password });
+      await user.save();
 
-      // Create User
-      user = await User.create({
-        name,
-        email,
-        password: hashedPassword
+      res.status(201).json({ 
+        message: 'User registered successfully',
+        user: { id: user._id, name: user.name, email: user.email }
       });
-
-      res.status(201).json({ message: 'User registered successfully' });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: 'Server error during signup' });
+      res.status(500).json({ message: error.message || 'Server error during signup' });
     }
   },
 
@@ -35,40 +35,37 @@ const AuthController = {
     try {
       const { email, password } = req.body;
 
-      // Check user
-      const user = await User.findOne({ where: { email } });
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+      }
+
+      // Find user (include password field)
+      const user = await User.findOne({ email }).select('+password');
       if (!user) {
-        return res.status(400).json({ message: 'Invalid credentials' });
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Check password
-      const isMatch = await bcrypt.compare(password, user.password);
+      // Check password using method from schema
+      const isMatch = await user.matchPassword(password);
       if (!isMatch) {
-        return res.status(400).json({ message: 'Invalid credentials' });
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Generate token
-      const payload = {
-        user: {
-          id: user.id
-        }
-      };
-
-      jwt.sign(
-        payload,
+      // Generate JWT token
+      const token = jwt.sign(
+        { user: { id: user._id } },
         process.env.JWT_SECRET || 'secret_key',
-        { expiresIn: '5h' },
-        (err, token) => {
-          if (err) throw err;
-          res.json({
-            token,
-            user: { id: user.id, name: user.name, email: user.email }
-          });
-        }
+        { expiresIn: '7d' }
       );
+
+      res.json({
+        token,
+        user: { id: user._id, name: user.name, email: user.email }
+      });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: 'Server error during login' });
+      res.status(500).json({ message: error.message || 'Server error during login' });
     }
   }
 };

@@ -1,17 +1,31 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const mongoose = require('mongoose');
 
-const Cart = sequelize.define('Cart', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true,
+const CartSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    items: [
+      {
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Product',
+          required: true,
+        },
+        quantity: {
+          type: Number,
+          required: true,
+          default: 1,
+          min: 1,
+        },
+      },
+    ],
   },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 1, // Simulating a single user for this prototype
-  }
-});
+  { timestamps: true }
+);
+
+const Cart = mongoose.model('Cart', CartSchema);
 
 module.exports = Cart;

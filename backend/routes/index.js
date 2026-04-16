@@ -5,6 +5,44 @@ const CartController = require('../controllers/CartController');
 const OrderController = require('../controllers/OrderController');
 const AuthController = require('../controllers/AuthController');
 const authMiddleware = require('../middleware/auth');
+const Product = require('../models/Product');
+
+// Test Route - Insert sample product if none exists
+router.get('/test', async (req, res) => {
+  try {
+    const existingProduct = await Product.findOne();
+    
+    if (!existingProduct) {
+      const sampleProduct = new Product({
+        name: 'Sample Laptop',
+        price: 999.99,
+        description: 'A high-performance laptop for professionals',
+        stock: 10,
+        category: 'Electronics',
+        image: 'https://via.placeholder.com/300x300?text=Laptop',
+      });
+      
+      await sampleProduct.save();
+      return res.status(201).json({
+        success: true,
+        message: 'Sample product created',
+        data: sampleProduct,
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: 'Products already exist in database',
+      data: existingProduct,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error in test route',
+      error: error.message,
+    });
+  }
+});
 
 // Auth Routes
 router.post('/auth/signup', AuthController.signup);

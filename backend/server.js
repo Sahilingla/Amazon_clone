@@ -1,7 +1,8 @@
 // Server Entry Point
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sequelize } = require('./models');
+const connectDB = require('./config/database');
 const routes = require('./routes');
 
 const app = express();
@@ -13,14 +14,30 @@ app.use(express.json());
 // Routes
 app.use('/api', routes);
 
-// Database Sync & Start Server
+// Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
+const IS_SERVERLESS = process.env.VERCEL || process.env.RENDER;
 
-sequelize.sync({ alter: true }).then(() => {
-  console.log('Database synced.');
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-}).catch(err => {
-  console.error('Unable to connect to the database:', err);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
+    console.log('Database connected successfully');
+    
+    if (!IS_SERVERLESS) {
+      app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Only start server in non-serverless environment
+if (!IS_SERVERLESS) {
+  startServer();
+}
+
+// Export for serverless platforms (Vercel, Render Functions)
+module.exports = app;

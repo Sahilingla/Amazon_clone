@@ -1,23 +1,21 @@
-const { Sequelize } = require('sequelize');
-const path = require('path');
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-// We are using SQLite for ease of setup as agreed.
-// It stores data in a local file so no separate MySQL server is needed.
-// To switch to MySQL, uncomment the MySQL section and comment the SQLite one.
+const connectDB = async () => {
+  try {
+    const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/ecommerce';
+    
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    
+    console.log('MongoDB connected successfully');
+    return mongoose.connection;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+};
 
-const sequelize = new Sequelize({
-  dialect: 'sqlite',
-  storage: path.join(__dirname, '..', 'ecommerce.sqlite'),
-  logging: false, // Set to console.log to see SQL queries
-});
-
-/* 
-// For MySQL:
-const sequelize = new Sequelize('ecommerce_db', 'username', 'password', {
-  host: 'localhost',
-  dialect: 'mysql',
-  logging: false,
-});
-*/
-
-module.exports = sequelize;
+module.exports = connectDB;

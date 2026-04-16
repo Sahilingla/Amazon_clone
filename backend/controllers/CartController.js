@@ -1,10 +1,12 @@
-const { Cart, CartItem, Product } = require('../models');
+const Cart = require('../models/Cart');
+const Product = require('../models/Product');
 
 // Helper to get or create cart for user
 const getOrCreateCart = async (userId) => {
-  let cart = await Cart.findOne({ where: { userId } });
+  let cart = await Cart.findOne({ userId });
   if (!cart) {
-    cart = await Cart.create({ userId });
+    cart = new Cart({ userId, items: [] });
+    await cart.save();
   }
   return cart;
 };
@@ -13,15 +15,16 @@ const CartController = {
   // Get cart with items
   async getCart(req, res) {
     try {
-      const cart = await getOrCreateCart(req.user.id);
-      const items = await CartItem.findAll({
-        where: { cartId: cart.id },
-        include: [{ model: Product }]
+      const cart = await getOrCreateCart(req.user.id)
+        .then(c => Cart.findById(c._id).populate('items.productId', 'name price image'));
+      
+      res.json({ 
+        success: true, 
+        data: cart || { items: [] } 
       });
-      res.json(items);
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: 'Error fetching cart' });
+      res.status(500).json({ success: false, message: 'Error fetching cart', error: error.message });
     }
   },
 
@@ -29,61 +32,83 @@ const CartController = {
   async addToCart(req, res) {
     try {
       const { productId, quantity = 1 } = req.body;
-      const cart = await getOrCreateCart(req.user.id);
+      const userId = req.user.id;
+
+      // Verify product exists
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+
+      // Get or create cart
+      const cart = await getOrCreateCart(userId);
 
       // Check if item already exists in cart
-      let cartItem = await CartItem.findOne({
-        where: { cartId: cart.id, productId }
-      });
+      const existingItem = cart.items.find(
+        item => item.productId.toString() === productId
+      );
 
-      if (cartItem) {
-        cartItem.quantity += parseInt(quantity);
-        await cartItem.save();
+      if (existingItem) {
+        existingItem.quantity += parseInt(quantity);
       } else {
-        cartItem = await CartItem.create({
-          cartId: cart.id,
-          productId,
-          quantity: parseInt(quantity)
-        });
+        cart.items.push({ productId, quantity: parseInt(quantity) });
       }
       
-      res.status(201).json(cartItem);
+      await cart.save();
+      await cart.populate('items.productId', 'name price image');
+      
+      res.status(201).json({ success: true, data: cart });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: 'Error adding to cart' });
+      res.status(500).json({ success: false, message: 'Error adding to cart', error: error.message });
     }
   },
 
   // Update cart item quantity
   async updateQuantity(req, res) {
     try {
-      const { id } = req.params; // CartItem ID
+      const { id: productId } = req.params; // Product ID
       const { quantity } = req.body;
-      const cart = await getOrCreateCart(req.user.id);
+      const userId = req.user.id;
       
-      const cartItem = await CartItem.findOne({ where: { id, cartId: cart.id } });
-      if (!cartItem) return res.status(404).json({ message: 'Item not found in your cart' });
+      const cart = await getOrCreateCart(userId);
       
-      cartItem.quantity = Math.max(1, parseInt(quantity));
-      await cartItem.save();
-      res.json(cartItem);
+      const item = cart.items.find(
+        item => item.productId.toString() === productId
+      );
+      
+      if (!item) {
+        return res.status(404).json({ success: false, message: 'Item not found in your cart' });
+      }
+      
+      item.quantity = Math.max(1, parseInt(quantity));
+      await cart.save();
+      await cart.populate('items.productId', 'name price image');
+      
+      res.json({ success: true, data: cart });
     } catch (error) {
-      res.status(500).json({ message: 'Error updating quantity' });
+      res.status(500).json({ success: false, message: 'Error updating quantity', error: error.message });
     }
   },
 
   // Remove item from cart
   async removeItem(req, res) {
     try {
-      const { id } = req.params;
-      const cart = await getOrCreateCart(req.user.id);
-      const cartItem = await CartItem.findOne({ where: { id, cartId: cart.id } });
-      if (cartItem) {
-        await cartItem.destroy();
-      }
-      res.json({ message: 'Item removed' });
+      const { id: productId } = req.params; // Product ID
+      const userId = req.user.id;
+      
+      const cart = await getOrCreateCart(userId);
+      
+      cart.items = cart.items.filter(
+        item => item.productId.toString() !== productId
+      );
+      
+      await cart.save();
+      await cart.populate('items.productId', 'name price image');
+      
+      res.json({ success: true, message: 'Item removed', data: cart });
     } catch (error) {
-      res.status(500).json({ message: 'Error removing item' });
+      res.status(500).json({ success: false, message: 'Error removing item', error: error.message });
     }
   }
 };
