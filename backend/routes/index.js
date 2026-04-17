@@ -1,84 +1,58 @@
-const Order = require('../models/Order');
+const express = require('express');
+const router = express.Router();
+
+const ProductController = require('../controllers/ProductController');
+const CartController = require('../controllers/CartController');
+const OrderController = require('../controllers/OrderController');
+const AuthController = require('../controllers/AuthController');
+const authMiddleware = require('../middleware/auth');
 const Product = require('../models/Product');
 
-// ✅ PLACE ORDER
-exports.placeOrder = async (req, res) => {
+// ✅ Test route (for inserting sample product)
+router.get('/test', async (req, res) => {
   try {
-    const { items, address } = req.body;
+    const existingProduct = await Product.findOne();
 
-    let totalAmount = 0;
+    if (!existingProduct) {
+      const sampleProduct = new Product({
+        name: 'Sample Laptop',
+        price: 999.99,
+        description: 'A high-performance laptop',
+        stock: 10,
+        category: 'Electronics',
+        image: 'https://via.placeholder.com/300',
+      });
 
-    const orderItems = await Promise.all(
-      items.map(async (item) => {
-        const product = await Product.findById(item.productId);
+      await sampleProduct.save();
 
-        if (!product) {
-          throw new Error('Product not found');
-        }
-
-        const price = product.price;
-        totalAmount += price * item.quantity;
-
-        return {
-          Product: product._id,
-          quantity: item.quantity,
-          price,
-        };
-      })
-    );
-
-    const order = await Order.create({
-      userId: req.user.id,
-      OrderItems: orderItems,
-      totalAmount,
-      address,
-    });
-
-    res.status(201).json({
-      success: true,
-      data: order,
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-// ✅ GET ALL ORDERS
-exports.getUserOrders = async (req, res) => {
-  try {
-    const orders = await Order.find({ userId: req.user.id })
-      .populate('OrderItems.Product')
-      .sort({ createdAt: -1 });
-
-    res.json({
-      success: true,
-      data: orders,
-    });
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-// ✅ GET SINGLE ORDER
-exports.getOrder = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id)
-      .populate('OrderItems.Product');
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.json({ success: true, data: sampleProduct });
     }
 
-    res.json({
-      success: true,
-      data: order,
-    });
+    res.json({ success: true, data: existingProduct });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};
+});
+
+// Auth Routes
+router.post('/auth/signup', AuthController.signup);
+router.post('/auth/login', AuthController.login);
+
+// Product Routes
+router.get('/products', ProductController.getAll);
+router.get('/products/:id', ProductController.getById);
+router.get('/categories', ProductController.getCategories);
+
+// Cart Routes
+router.get('/cart', authMiddleware, CartController.getCart);
+router.post('/cart/add', authMiddleware, CartController.addToCart);
+router.put('/cart/:id', authMiddleware, CartController.updateQuantity);
+router.delete('/cart/:id', authMiddleware, CartController.removeItem);
+
+// Order Routes
+router.post('/orders', authMiddleware, OrderController.placeOrder);
+router.get('/orders', authMiddleware, OrderController.getUserOrders);
+router.get('/orders/:id', authMiddleware, OrderController.getOrder);
+
+module.exports = router;
