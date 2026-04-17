@@ -10,33 +10,43 @@ const HomePage = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // Fetch Categories
-    api.get('/categories').then(res => setCategories(res.data)).catch(console.error);
+    // ✅ Safe categories fetch
+    api.get('/categories')
+      .then(res => {
+        const data = Array.isArray(res.data) ? res.data : res.data.data || [];
+        setCategories(data);
+      })
+      .catch(console.error);
   }, []);
 
   useEffect(() => {
-    // Fetch Products with params
     const searchParams = new URLSearchParams(location.search);
     const search = searchParams.get('search');
 
     let url = '/products';
     const params = [];
+
     if (search) params.push(`search=${search}`);
     if (selectedCategory) params.push(`categoryId=${selectedCategory}`);
-    
+
     if (params.length > 0) {
       url += `?${params.join('&')}`;
     }
 
+    // ✅ Safe products fetch
     api.get(url)
-       .then(res => setProducts(res.data))
-       .catch(console.error);
+      .then(res => {
+        const data = Array.isArray(res.data) ? res.data : res.data.data || [];
+        setProducts(data);
+      })
+      .catch(console.error);
 
   }, [location.search, selectedCategory]);
 
   return (
     <div className="container page-layout animate-fade-in">
-      {/* Sidebar with categories */}
+
+      {/* Sidebar */}
       <aside className="sidebar">
         <h3>Categories</h3>
         <ul>
@@ -46,9 +56,11 @@ const HomePage = () => {
           >
             All Departments
           </li>
-          {categories.map(cat => (
+
+          {/* ✅ Safe map */}
+          {Array.isArray(categories) && categories.map(cat => (
             <li 
-              key={cat.id} 
+              key={cat.id}
               style={{ fontWeight: selectedCategory === cat.id ? 'bold' : 'normal' }}
               onClick={() => setSelectedCategory(cat.id)}
             >
@@ -58,14 +70,17 @@ const HomePage = () => {
         </ul>
       </aside>
 
-      {/* Main Content Grid */}
+      {/* Main */}
       <main className="main-content">
         <h2>Results</h2>
+
         <div className="product-grid">
-          {products.map(product => (
+          {/* ✅ Safe map */}
+          {Array.isArray(products) && products.map(product => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
+
       </main>
     </div>
   );
