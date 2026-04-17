@@ -1,95 +1,86 @@
 const Order = require('../models/Order');
-const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
-const OrderController = {
-  // Place an order (requires auth)
-  async placeOrder(req, res) {
-    try {
-      const { address } = req.body;
-      const userId = req.user.id;
+// 🔹 Create Order
+exports.createOrder = async (req, res) => {
+  try {
+    const { items, address } = req.body;
 
-      if (!address) {
-        return res.status(400).json({ success: false, message: 'Address is required' });
-      }
+    let totalAmount = 0;
 
-      // Get cart and populate items
-      const cart = await Cart.findOne({ userId }).populate('items.productId');
-      if (!cart || cart.items.length === 0) {
-        return res.status(400).json({ success: false, message: 'Cart is empty' });
-      }
+    const orderItems = await Promise.all(
+      items.map(async (item) => {
+        const product = await Product.findById(item.productId);
 
-      // Calculate total and prepare order items
-      let totalAmount = 0;
-      const orderItems = [];
-      
-      cart.items.forEach(item => {
-        const itemTotal = item.quantity * item.productId.price;
-        totalAmount += itemTotal;
-        
-        orderItems.push({
-          productId: item.productId._id,
+        if (!product) {
+          throw new Error('Product not found');
+        }
+
+        const price = product.price;
+        totalAmount += price * item.quantity;
+
+        return {
+          Product: product._id,
           quantity: item.quantity,
-          price: item.productId.price
-        });
-      });
+          price,
+        };
+      })
+    );
 
-      // Create Order
-      const order = new Order({
-        userId,
-        items: orderItems,
-        totalAmount,
-        address,
-        status: 'Pending'
-      });
-      
-      await order.save();
+    const order = await Order.create({
+      userId: req.user.id,
+      OrderItems: orderItems,
+      totalAmount,
+      address,
+    });
 
-      // Clear Cart
-      cart.items = [];
-      await cart.save();
+    res.status(201).json({
+      success: true,
+      data: order,
+    });
 
-      res.status(201).json({ 
-        success: true, 
-        message: 'Order placed successfully',
-        data: order 
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ success: false, message: 'Error placing order', error: error.message });
-    }
-  },
-
-  // Get user orders
-  async getUserOrders(req, res) {
-    try {
-      const orders = await Order.find({ userId: req.user.id })
-        .populate('items.productId', 'name price image')
-        .sort({ createdAt: -1 });
-      
-      res.json({ success: true, data: orders });
-    } catch (error) {
-      res.status(500).json({ success: false, message: 'Error fetching orders', error: error.message });
-    }
-  },
-
-  // Get order details (ensure ownership)
-  async getOrder(req, res) {
-    try {
-      const order = await Order.findOne({
-        _id: req.params.id,
-        userId: req.user.id
-      }).populate('items.productId', 'name price image');
-      
-      if (!order) {
-        return res.status(404).json({ success: false, message: 'Order not found or unauthorized' });
-      }
-      
-      res.json({ success: true, data: order });
-    } catch (error) {
-      res.status(500).json({ success: false, message: 'Error fetching order', error: error.message });
-    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
-module.exports = OrderController;
+
+
+// 🔹 Get All Orders (User)
+exports.getOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ userId: req.user.id })
+      .populate('OrderItems.Product')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: orders,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+
+// 🔹 Get Single Order
+exports.getOrderById = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('OrderItems.Product');
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json({
+      success: true,
+      data: order,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

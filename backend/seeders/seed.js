@@ -1,62 +1,71 @@
-const { sequelize, Category, Product } = require('../models');
+const mongoose = require('mongoose');
+require('dotenv').config();
 
-async function runSeed() {
-  await sequelize.sync({ force: true }); // Drop existing tables and recreate
-  
-  console.log('Database synced. Seeding data...');
+const Product = require('../models/Product');
+const Category = require('../models/Category');
 
-  const cat1 = await Category.create({ name: 'Electronics' });
-  const cat2 = await Category.create({ name: 'Books' });
-  const cat3 = await Category.create({ name: 'Clothing' });
-  
-  await Product.bulkCreate([
-    {
-      name: 'Wireless Noise Cancelling Headphones',
-      description: 'Industry leading noise cancellation, optimized for Alexa and Google Assistant.',
-      price: 298.00,
-      stock: 50,
-      image: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=500&q=80',
-      categoryId: cat1.id
-    },
-    {
-      name: 'Smartphone 12 Pro',
-      description: '5G capability, A14 Bionic chip, Pro camera system.',
-      price: 999.00,
-      stock: 20,
-      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=500&q=80',
-      categoryId: cat1.id
-    },
-    {
-      name: '4K Ultra HD Smart TV',
-      description: 'Stunning 4K display with smart features.',
-      price: 499.99,
-      stock: 15,
-      image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&w=500&q=80',
-      categoryId: cat1.id
-    },
-    {
-      name: 'The Pragmatic Programmer',
-      description: 'Your journey to mastery, 20th Anniversary Edition.',
-      price: 39.99,
-      stock: 100,
-      image: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=500&q=80',
-      categoryId: cat2.id
-    },
-    {
-      name: 'Men\'s Classic T-Shirt',
-      description: '100% cotton, comfortable fit.',
-      price: 19.99,
-      stock: 200,
-      image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=500&q=80',
-      categoryId: cat3.id
-    }
-  ]);
+const seedData = async () => {
+  try {
+    // Connect to MongoDB
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB connected');
 
-  console.log('Seed completed successfully!');
-  process.exit();
-}
+    // Clear existing data
+    await Product.deleteMany();
+    await Category.deleteMany();
 
-runSeed().catch(err => {
-  console.error('Failed to seed:', err);
-  process.exit(1);
-});
+    console.log('Old data removed');
+
+    // Create categories
+    const electronics = await Category.create({ name: 'Electronics' });
+    const books = await Category.create({ name: 'Books' });
+    const clothing = await Category.create({ name: 'Clothing' });
+
+    console.log('Categories created');
+
+    // Create products
+    await Product.insertMany([
+      {
+        name: 'Wireless Headphones',
+        description: 'Noise cancelling headphones with premium sound.',
+        price: 299,
+        stock: 50,
+        image: 'https://via.placeholder.com/300',
+        category: electronics._id
+      },
+      {
+        name: 'Smartphone Pro',
+        description: 'Latest smartphone with amazing camera.',
+        price: 999,
+        stock: 25,
+        image: 'https://via.placeholder.com/300',
+        category: electronics._id
+      },
+      {
+        name: 'Programming Book',
+        description: 'Learn full stack development.',
+        price: 45,
+        stock: 100,
+        image: 'https://via.placeholder.com/300',
+        category: books._id
+      },
+      {
+        name: 'Men T-Shirt',
+        description: 'Comfortable cotton t-shirt.',
+        price: 20,
+        stock: 200,
+        image: 'https://via.placeholder.com/300',
+        category: clothing._id
+      }
+    ]);
+
+    console.log('Products inserted successfully 🎉');
+
+    process.exit();
+  } catch (error) {
+    console.error('Seeding failed ❌', error);
+    process.exit(1);
+  }
+};
+
+seedData();
