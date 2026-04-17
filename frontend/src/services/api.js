@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api', // Backend base URL
+  baseURL: 'https://amazon-clone-backend-sahil.onrender.com/api', // ✅ deployed backend URL
 });
 
 // Add a request interceptor to inject the token
@@ -18,11 +18,12 @@ api.interceptors.request.use(
   }
 );
 
+// Handle response errors
 api.interceptors.response.use(
-  response => response,
-  error => {
+  (response) => response,
+  (error) => {
     if (error.response && error.response.status === 401) {
-      // Token is invalid/expired or unauthorized access
+      // Token expired or unauthorized
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
